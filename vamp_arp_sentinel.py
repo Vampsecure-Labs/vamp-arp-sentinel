@@ -1,45 +1,48 @@
 #!/usr/bin/env python3
 """
-vamp_arp_sentinel.py — VampSecure Labs · ARP Sentinel v2.0
-===========================================================
-Herramienta de detección y laboratorio para ataques ARP spoofing / cache poisoning.
+vamp_arp_sentinel.py — Detector y Laboratorio de ARP Spoofing
+=============================================================
+VampSecure Labs · VampSecure Studios
+Para Uso Exclusivo en Pruebas de Penetración Autorizadas — v2.0
 
-Modos de operación
-------------------
-  sentinel   Monitoriza tráfico ARP en una interfaz. Aprende la tabla IP→MAC
-              durante la fase de aprendizaje y genera alertas cuando una IP
-              cambia de MAC (síntoma de ARP spoofing).
+DESCRIPCIÓN GENERAL
+-------------------
+Herramienta de detección y laboratorio para ataques ARP spoofing y
+envenenamiento de caché ARP (cache poisoning). Combina un monitor de
+red pasivo (modo sentinel) con una PoC de ataque ARP controlada (modo
+attacker), permitiendo al auditor tanto detectar actividad MitM activa
+como validar la efectividad de sus controles de red en un entorno de
+laboratorio autorizado.
 
-  attacker   PoC de cache poisoning ARP. Inunda la red con respuestas ARP
-              falsas (op=2 "is-at") suplantando una IP objetivo. Diseñado
-              exclusivamente para entornos de laboratorio autorizados.
+La captura de paquetes se realiza mediante Scapy con filtro BPF "arp",
+lo que garantiza bajo overhead y alta precisión. El módulo de validación
+de scope asegura que la herramienta solo opere dentro de las subredes
+autorizadas explícitamente.
 
-Arquitectura
+ARQUITECTURA DE EJECUCIÓN (2 modos)
+------------------------------------
+  Modo sentinel (detección pasiva + activa)
+    Fase 1 — Aprendizaje: captura paquetes ARP durante --learn-time segundos
+             y construye la tabla canónica IP→MAC de la red.
+    Fase 2 — Sellado: la tabla se congela; cualquier cambio de MAC en una
+             IP ya conocida genera una ALERTA CRÍTICA (posible MitM activo).
+             Las IPs nuevas generan un AVISO (nuevo host o spoofing).
+    Salida: Rich Live table con el estado IP/MAC en tiempo real.
+
+  Modo attacker (PoC de laboratorio)
+    Envía respuestas ARP falsas (op=2 "is-at") suplantando una IP objetivo.
+    Diseñado exclusivamente para validar controles de detección en entornos
+    controlados. Requiere autorización explícita del propietario de la red.
+
+DEPENDENCIAS
 ------------
-  · Capa de captura:    Scapy sniff() con filtro BPF "arp"
-  · Validación scope:   ScopeValidator verifica que la interfaz pertenece
-                        a una subred autorizada (scope.txt o --subnet)
-  · Salida:             Rich Console · tabla IP/MAC en vivo
-  · Alertas:            Panel Rich con detalle del spoofing detectado
+  scapy    >= 2.5.0    — Captura y forja de paquetes de red (requiere root)
+  rich     >= 13.7.0   — Salida de consola con formato enriquecido y tablas
 
-Modelo de riesgo
-----------------
-  ALERTA CRÍTICA: cambio de MAC en IP ya aprendida  → posible MitM activo
-  AVISO:          nueva IP vista tras fase sellada   → posible nuevo host
-
-Uso
----
-  # Modo sentinel (monitorización)
-  sudo python vamp_arp_sentinel.py sentinel -i eth0 --learn-time 10
-
-  # Modo attacker (PoC lab, entorno controlado)
-  sudo python vamp_arp_sentinel.py attacker 192.168.1.100 192.168.1.1 -i eth0
-
-Dependencias: scapy, rich
-Requisitos:   root/CAP_NET_RAW (captura de paquetes)
-
-© VampSecure Studios — VampSecure Labs Security Research Division
-Uso exclusivo en entornos autorizados. Ver LICENSE.
+AUTORÍA
+-------
+  © VampSecure Studios — VampSecure Labs Security Research Division
+  Todos los derechos reservados. Uso exclusivo en entornos autorizados.
 """
 
 from __future__ import annotations
@@ -72,13 +75,14 @@ from rich.text import Text
 
 VERSION = "2.0"
 BANNER = r"""
- ██╗   ██╗ █████╗ ███╗   ███╗██████╗ ███████╗███████╗ ██████╗
- ██║   ██║██╔══██╗████╗ ████║██╔══██╗██╔════╝██╔════╝██╔════╝
- ██║   ██║███████║██╔████╔██║██████╔╝███████╗█████╗  ██║
- ╚██╗ ██╔╝██╔══██║██║╚██╔╝██║██╔═══╝ ╚════██║██╔══╝  ██║
-  ╚████╔╝ ██║  ██║██║ ╚═╝ ██║██║     ███████║███████╗╚██████╗
-   ╚═══╝  ╚═╝  ╚═╝╚═╝     ╚═╝╚═╝     ╚══════╝╚══════╝ ╚═════╝
-   [ARP-SENTINEL v{version}] by VampSecure Labs
+  ____   ____    _    __  __ ____  _____ ____ _   _ ____  _____   _        _    ____ ____
+ \ \ / / _  |  / \  |  \/  |  _ \/ ____/ ___| | | |  _ \| ____| | |      / \  | __ ) ___|
+  \ V / (_| | / _ \ | |\/| | |_) \___ \| |___| | | | |_) |  _|   | |     / _ \ |  _ \___ \
+   | |  \__, |/ ___ \| |  | |  __/ ___) |___  | |_| |  _ <| |___  | |___ / ___ \| |_) |__) |
+   |_|     /_/_/   \_|_|  |_|_|   |____/\____|\___/|_| \_|_____| |_____/_/   \_|____/____/
+        by VampSecure Studios · vamp-arp-sentinel v2.0 · Detector y Laboratorio de ARP Spoofing
+        ──────────────────────────────────────────────────────────────────────────────────────────
+        USO EXCLUSIVO EN AUDITORÍAS AUTORIZADAS · El uso no autorizado es ilegal
 """
 
 console = Console()
