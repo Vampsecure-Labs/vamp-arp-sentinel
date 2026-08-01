@@ -404,6 +404,11 @@ ADVERTENCIA: Solo para uso en entornos autorizados.
     sent.add_argument("--subnet", metavar="CIDR",
                       help="Subred autorizada (e.g. 192.168.1.0/24)")
 
+    # Argumentos de informe unificado VSL (--client, --engagement, --auditor,
+    # --report-scope, --report-html, --report-pdf)
+    from vampsec_report import add_report_args
+    add_report_args(sent)
+
     # Subcomando attacker
     att = subs.add_parser("attacker", help="PoC de ARP cache poisoning (solo lab)")
     att.add_argument("target_ip", help="IP de la víctima (objetivo del envenenamiento)")
@@ -413,6 +418,63 @@ ADVERTENCIA: Solo para uso en entornos autorizados.
                      help="Segundos entre paquetes (default: 2.0)")
 
     return p
+
+
+# =============================================================================
+# CONVERSOR A FORMATO DE INFORME UNIFICADO VSL
+# =============================================================================
+
+def _findings_vsl(alerts: list, iface: str) -> list:
+    """
+    Convierte las alertas ARP de la sesión al formato Finding unificado de VampSecure Labs.
+
+    Cada alerta de ARP spoofing se traduce a un hallazgo CRITICAL, ya que implica
+    la posibilidad de un ataque Man-in-the-Middle activo en la red.
+
+    Parámetros
+    ----------
+    alerts : list[dict]  — Lista de alertas con claves ts, ip, orig_mac, new_mac
+    iface  : str         — Interfaz de red monitorizada
+
+    Retorna
+    -------
+    List[Finding]  — Lista de hallazgos en formato VSL con prefijo ARP-NNN
+    """
+    from vampsec_report import Finding as VSLFinding
+
+    hallazgos: list = []
+
+    for n, a in enumerate(alerts, start=1):
+        hallazgos.append(VSLFinding(
+            id          = f"ARP-{n:03d}",
+            title       = f"ARP Spoofing detectado — IP {a['ip']}",
+            severity    = "CRITICAL",
+            description = (
+                f"Se detectó un cambio de MAC no autorizado para la IP {a['ip']} "
+                f"en la interfaz {iface}. La MAC original registrada era {a['orig_mac']} "
+                f"y fue reemplazada por {a['new_mac']}. "
+                "Este comportamiento es indicativo de un ataque ARP cache poisoning "
+                "que puede derivar en un Man-in-the-Middle (MitM) activo."
+            ),
+            evidence    = (
+                f"Timestamp: {a['ts']} | "
+                f"IP afectada: {a['ip']} | "
+                f"MAC original: {a['orig_mac']} | "
+                f"MAC suplantadora: {a['new_mac']} | "
+                f"Interfaz: {iface}"
+            ),
+            affected    = f"{a['ip']} (iface: {iface})",
+            remediation = (
+                "1. Identificar el dispositivo con MAC suplantadora y aislarlo de la red. "
+                "2. Activar DHCP Snooping y Dynamic ARP Inspection (DAI) en el switch. "
+                "3. Considerar el uso de ARP estático para hosts críticos. "
+                "4. Revisar logs del switch para identificar el puerto físico del atacante."
+            ),
+            cvss        = 8.1,
+            tags        = ["arp", "network", "mitm", "spoofing"],
+        ))
+
+    return hallazgos
 
 
 def main() -> None:
@@ -437,6 +499,18 @@ def main() -> None:
             scope=scope,
         )
         sentinel.run()
+
+        # ── Informe unificado VSL (cliente) ───────────────────────────────────
+        if getattr(args, "report_html", None) or getattr(args, "report_pdf", None):
+            from vampsec_report import VampSecReport, meta_from_args
+            meta   = meta_from_args(args, tool="vamp-arp-sentinel", version=VERSION)
+            report = VampSecReport(meta=meta, findings=_findings_vsl(sentinel._alerts, args.iface))
+            if args.report_html:
+                report.to_html_client(args.report_html)
+                console.print(f"[bold green][✓] Informe cliente HTML guardado: {args.report_html}[/]")
+            if args.report_pdf:
+                report.to_pdf(args.report_pdf)
+                console.print(f"[bold green][✓] Informe cliente PDF guardado: {args.report_pdf}[/]")
 
     elif args.mode == "attacker":
         console.print(
