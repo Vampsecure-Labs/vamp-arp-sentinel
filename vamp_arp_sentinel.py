@@ -49,18 +49,34 @@ from __future__ import annotations
 
 import argparse
 import ipaddress
+import json
 import os
 import sys
 import threading
 import time
 from datetime import datetime
-from typing import Dict, Optional
+from pathlib import Path
+from typing import Dict, List, Optional
 
 try:
     from scapy.all import ARP, IP, send, sniff, get_if_hwaddr, get_if_list
 except ImportError:
     print("[ERROR] Instala scapy: pip install scapy", file=sys.stderr)
     sys.exit(1)
+
+# Soporte IPv6/NDP — módulo inet6 de scapy (opcional)
+# Si no está disponible, el modo --ndp emite un aviso y no hace nada.
+try:
+    from scapy.layers.inet6 import (
+        ICMPv6ND_NS,
+        ICMPv6ND_NA,
+        ICMPv6NDOptDstLLAddr,
+        ICMPv6NDOptSrcLLAddr,
+        IPv6,
+    )
+    _NDP_AVAILABLE = True
+except Exception:
+    _NDP_AVAILABLE = False
 
 from rich.console import Console
 from rich.layout import Layout
@@ -73,14 +89,14 @@ from rich.text import Text
 # Constantes
 # ────────────────────────────────────────────────────────────────────────────
 
-VERSION = "2.0"
+VERSION = "2.1"
 BANNER = r"""
-__   ___   __  __ ___  ___ ___ ___ _   _ ___ ___ _      _   ___ ___ 
+__   ___   __  __ ___  ___ ___ ___ _   _ ___ ___ _      _   ___ ___
 \ \ / /_\ |  \/  | _ \/ __| __/ __| | | | _ \ __| |    /_\ | _ ) __|
  \ V / _ \| |\/| |  _/\__ \ _| (__| |_| |   / _|| |__ / _ \| _ \__ \
   \_/_/ \_\_|  |_|_|  |___/___\___|\___/|_|_\___|____/_/ \_\___/___/
   by Antonio Hernandez "Belky" — VampSecure Studios
-  vamp-arp-sentinel v2.0 · ARP Spoofing Detector & Lab
+  vamp-arp-sentinel v2.1 · ARP/NDP Spoofing Detector & Lab
   ────────────────────────────────────────────────────────────────────────
   USO EXCLUSIVO EN AUDITORÍAS AUTORIZADAS · El uso no autorizado es ilegal
 """
@@ -367,6 +383,203 @@ class ARPAttacker:
 
 
 # ────────────────────────────────────────────────────────────────────────────
+# Modo NDP SENTINEL — IPv6 Neighbor Discovery Protocol
+# ────────────────────────────────────────────────────────────────────────────
+
+class NDPSentinel:
+    """
+    Monitoriza tráfico NDP (IPv6 Neighbor Discovery Protocol) y detecta
+    cambios inesperados de MAC → posible NDP/IPv6 spoofing.
+
+    Escucha paquetes ICMPv6 tipo 135 (Neighbor Solicitation) y 136
+    (Neighbor Advertisement) y construye una tabla IPv6→MAC canónica.
+    Si una dirección IPv6 conocida cambia de MAC emite una alerta CRITICAL.
+
+    Ciclo de vida idéntico al ARPSentinel:
+      1. Fase APRENDIZAJE (learn_time seg): registra tabla IPv6→MAC legítima
+      2. Fase SELLADO: cualquier cambio de MAC en IPv6 conocida es alerta
+    """
+
+    def __init__(self, iface: str, learn_time: int):
+        self.iface = iface
+        self.learn_time = learn_time
+        self._table: Dict[str, str] = {}  # ipv6 → mac conocida
+        self._locked = False
+        self._alerts: List[dict] = []
+        self._lock = threading.Lock()
+
+    def _process_ndp(self, pkt) -> None:
+        """Callback para cada paquete ICMPv6 ND capturado."""
+        mac: Optional[str] = None
+        ipv6_src: Optional[str] = None
+
+        try:
+            # Neighbor Advertisement (tipo 136) — anuncia su propia MAC
+            if pkt.haslayer(ICMPv6ND_NA):
+                if pkt.haslayer(IPv6):
+                    ipv6_src = pkt[IPv6].src
+                if pkt.haslayer(ICMPv6NDOptDstLLAddr):
+                    mac = pkt[ICMPv6NDOptDstLLAddr].lladdr
+
+            # Neighbor Solicitation (tipo 135) — la fuente también lleva su MAC
+            elif pkt.haslayer(ICMPv6ND_NS):
+                if pkt.haslayer(IPv6):
+                    ipv6_src = pkt[IPv6].src
+                if pkt.haslayer(ICMPv6NDOptSrcLLAddr):
+                    mac = pkt[ICMPv6NDOptSrcLLAddr].lladdr
+        except Exception:
+            return
+
+        if not ipv6_src or not mac:
+            return
+
+        # Ignorar dirección no asignada (::) y loopback (::1)
+        if ipv6_src in ("::", "::1", "0:0:0:0:0:0:0:0", "0:0:0:0:0:0:0:1"):
+            return
+
+        with self._lock:
+            if ipv6_src in self._table:
+                if self._table[ipv6_src] != mac:
+                    # Cambio de MAC → posible NDP spoofing
+                    alert = {
+                        "ts": datetime.now().strftime("%H:%M:%S"),
+                        "ip": ipv6_src,
+                        "orig_mac": self._table[ipv6_src],
+                        "new_mac": mac,
+                    }
+                    self._alerts.append(alert)
+                    console.print(
+                        f"[bold red][CRITICAL] NDP spoofing detectado: "
+                        f"IPv6 {ipv6_src} cambió de MAC {self._table[ipv6_src]} "
+                        f"a {mac}[/]"
+                    )
+            else:
+                if not self._locked:
+                    self._table[ipv6_src] = mac
+
+    def run(self) -> List[dict]:
+        """
+        Inicia la captura NDP en segundo plano hasta que se recibe Ctrl+C.
+        Devuelve la lista de alertas detectadas.
+        """
+        if not _NDP_AVAILABLE:
+            console.print(
+                "[dim]  INFO: NDP monitoring no disponible "
+                "(scapy requerido con soporte inet6 — pip install scapy)[/]"
+            )
+            return []
+
+        console.print(
+            f"[cyan]  NDP monitoring activo en [bold]{self.iface}[/bold] "
+            f"(aprendizaje: {self.learn_time}s)[/]"
+        )
+
+        sniff_thread = threading.Thread(
+            target=sniff,
+            kwargs={
+                "iface": self.iface,
+                "filter": "icmp6",
+                "prn": self._process_ndp,
+                "store": False,
+                "stop_filter": lambda _: False,
+            },
+            daemon=True,
+        )
+        sniff_thread.start()
+
+        start = time.time()
+        try:
+            while True:
+                elapsed = time.time() - start
+                if not self._locked and elapsed >= self.learn_time:
+                    self._locked = True
+                    console.print(
+                        f"[bold green]✔ NDP FASE SELLADA[/] — "
+                        f"{len(self._table)} entradas IPv6 en tabla. Vigilando cambios..."
+                    )
+                time.sleep(0.5)
+        except KeyboardInterrupt:
+            pass
+
+        console.print(
+            f"[cyan]  NDP finalizado: {len(self._table)} IPs aprendidas, "
+            f"{len(self._alerts)} alertas[/]"
+        )
+        return self._alerts
+
+
+# ────────────────────────────────────────────────────────────────────────────
+# Salida JSON — compatible con vamp-orchestrator
+# ────────────────────────────────────────────────────────────────────────────
+
+def dump_json_output(
+    path: str,
+    arp_alerts: List[dict],
+    ndp_alerts: Optional[List[dict]] = None,
+    iface: str = "",
+) -> None:
+    """
+    Vuelca los resultados de la sesión en formato JSON compatible con
+    vamp-orchestrator.
+
+    Formato:
+      {
+        "tool": "vamp-arp-sentinel",
+        "version": "2.1",
+        "timestamp": "...",
+        "interface": "eth0",
+        "findings": [
+          {
+            "type": "arp_spoofing",
+            "severity": "CRITICAL",
+            "ip": "192.168.1.1",
+            "orig_mac": "aa:bb:cc:dd:ee:ff",
+            "new_mac": "11:22:33:44:55:66",
+            "timestamp": "12:34:56"
+          }
+        ]
+      }
+    """
+    findings: List[dict] = []
+
+    for a in arp_alerts:
+        findings.append({
+            "type": "arp_spoofing",
+            "severity": "CRITICAL",
+            "ip": a["ip"],
+            "orig_mac": a["orig_mac"],
+            "new_mac": a["new_mac"],
+            "timestamp": a["ts"],
+        })
+
+    for a in (ndp_alerts or []):
+        findings.append({
+            "type": "ndp_spoofing",
+            "severity": "CRITICAL",
+            "ip": a["ip"],
+            "orig_mac": a["orig_mac"],
+            "new_mac": a["new_mac"],
+            "timestamp": a["ts"],
+        })
+
+    out = {
+        "tool": "vamp-arp-sentinel",
+        "version": VERSION,
+        "timestamp": datetime.now().isoformat(),
+        "interface": iface,
+        "findings": findings,
+        "summary": {
+            "total": len(findings),
+            "arp_spoofing": sum(1 for f in findings if f["type"] == "arp_spoofing"),
+            "ndp_spoofing": sum(1 for f in findings if f["type"] == "ndp_spoofing"),
+        },
+    }
+
+    Path(path).write_text(json.dumps(out, indent=2, ensure_ascii=False), encoding="utf-8")
+    console.print(f"[dim]  JSON → {path} ({len(findings)} hallazgos)[/]")
+
+
+# ────────────────────────────────────────────────────────────────────────────
 # CLI
 # ────────────────────────────────────────────────────────────────────────────
 
@@ -403,6 +616,18 @@ ADVERTENCIA: Solo para uso en entornos autorizados.
                       help="Fichero scope.txt con subredes CIDR autorizadas")
     sent.add_argument("--subnet", metavar="CIDR",
                       help="Subred autorizada (e.g. 192.168.1.0/24)")
+    sent.add_argument("--ndp", action="store_true",
+                      help=(
+                          "Habilitar monitoring de NDP (IPv6 Neighbor Discovery Protocol). "
+                          "Detecta cambios de MAC en direcciones IPv6 (posible NDP spoofing). "
+                          "Requiere scapy con soporte inet6. Desactivado por defecto."
+                      ))
+    sent.add_argument("--json-output", metavar="FICHERO",
+                      help=(
+                          "Volcar resultados en formato JSON compatible con vamp-orchestrator. "
+                          "Formato: {\"tool\":\"vamp-arp-sentinel\",\"timestamp\":\"...\","
+                          "\"findings\":[...]}"
+                      ))
 
     # Argumentos de informe unificado VSL (--client, --engagement, --auditor,
     # --report-scope, --report-html, --report-pdf)
@@ -500,11 +725,30 @@ def main() -> None:
         )
         sentinel.run()
 
+        # ── Monitoring NDP (IPv6) opcional ────────────────────────────────────
+        ndp_alerts: List[dict] = []
+        if getattr(args, "ndp", False):
+            ndp_sentinel = NDPSentinel(
+                iface=args.iface,
+                learn_time=args.learn_time,
+            )
+            ndp_alerts = ndp_sentinel.run()
+
+        # ── Exportar JSON (vamp-orchestrator compatible) ──────────────────────
+        if getattr(args, "json_output", None):
+            dump_json_output(
+                path=args.json_output,
+                arp_alerts=sentinel._alerts,
+                ndp_alerts=ndp_alerts,
+                iface=args.iface,
+            )
+
         # ── Informe unificado VSL (cliente) ───────────────────────────────────
         if getattr(args, "report_html", None) or getattr(args, "report_pdf", None):
             from vampsec_report import VampSecReport, meta_from_args
+            todas_alertas = sentinel._alerts + ndp_alerts
             meta   = meta_from_args(args, tool="vamp-arp-sentinel", version=VERSION)
-            report = VampSecReport(meta=meta, findings=_findings_vsl(sentinel._alerts, args.iface))
+            report = VampSecReport(meta=meta, findings=_findings_vsl(todas_alertas, args.iface))
             if args.report_html:
                 report.to_html_client(args.report_html)
                 console.print(f"[bold green][✓] Informe cliente HTML guardado: {args.report_html}[/]")
