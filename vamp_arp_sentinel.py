@@ -89,14 +89,14 @@ from rich.text import Text
 # Constantes
 # ────────────────────────────────────────────────────────────────────────────
 
-VERSION = "2.1"
+VERSION = "2.2"
 BANNER = r"""
 __   ___   __  __ ___  ___ ___ ___ _   _ ___ ___ _      _   ___ ___
 \ \ / /_\ |  \/  | _ \/ __| __/ __| | | | _ \ __| |    /_\ | _ ) __|
  \ V / _ \| |\/| |  _/\__ \ _| (__| |_| |   / _|| |__ / _ \| _ \__ \
   \_/_/ \_\_|  |_|_|  |___/___\___|\___/|_|_\___|____/_/ \_\___/___/
   by Antonio Hernandez "Belky" — VampSecure Studios
-  vamp-arp-sentinel v2.1 · ARP/NDP Spoofing Detector & Lab
+  vamp-arp-sentinel v2.2 · ARP/NDP Spoofing Detector & Lab
   ────────────────────────────────────────────────────────────────────────
   USO EXCLUSIVO EN AUDITORÍAS AUTORIZADAS · El uso no autorizado es ilegal
 """
@@ -622,11 +622,12 @@ ADVERTENCIA: Solo para uso en entornos autorizados.
                           "Detecta cambios de MAC en direcciones IPv6 (posible NDP spoofing). "
                           "Requiere scapy con soporte inet6. Desactivado por defecto."
                       ))
-    sent.add_argument("--json-output", metavar="FICHERO",
+    sent.add_argument("--json", "--json-output", dest="json_output", metavar="FICHERO",
                       help=(
                           "Volcar resultados en formato JSON compatible con vamp-orchestrator. "
                           "Formato: {\"tool\":\"vamp-arp-sentinel\",\"timestamp\":\"...\","
-                          "\"findings\":[...]}"
+                          "\"findings\":[...]}. "
+                          "(--json es alias de --json-output para compatibilidad con el orquestador)"
                       ))
 
     # Argumentos de informe unificado VSL (--client, --engagement, --auditor,
