@@ -1,3 +1,4 @@
+<!-- © VampSecure Studios — VampSecure Labs Security Research Division -->
 <h1 align="center">vamp-arp-sentinel</h1>
 <p align="center">
   <strong>Passive ARP spoofing detector with proof-of-concept ARP cache poisoning lab mode</strong><br>
@@ -45,6 +46,13 @@ pip install -r requirements.txt
 Standard library: `argparse`, `ipaddress`, `os`, `sys`, `threading`, `time`, `datetime`.
 
 ## Installation
+
+
+```bash
+pip install vamp-arp-sentinel
+# o con Homebrew:
+brew install vampsecure-labs/labs/vamp-arp-sentinel
+```
 
 ```bash
 git clone https://github.com/belky-me/vamp-arp-sentinel.git
@@ -131,3 +139,8 @@ This tool is part of the **VampSecure Labs Security Toolkit** — a collection o
 
 © VampSecure Studios — VampSecure Labs Security Research Division  
 For authorized security testing only.
+
+---
+
+## Versión
+v2.1 — VampSecure Labs Security Research Division
