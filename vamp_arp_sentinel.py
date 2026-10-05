@@ -59,7 +59,7 @@ from pathlib import Path
 from typing import Dict, List, Optional
 
 try:
-    from scapy.all import ARP, IP, send, sniff, get_if_hwaddr, get_if_list
+    from scapy.all import ARP, send, sniff, get_if_hwaddr
 except ImportError:
     print("[ERROR] Instala scapy: pip install scapy", file=sys.stderr)
     sys.exit(1)
@@ -83,7 +83,6 @@ from rich.layout import Layout
 from rich.live import Live
 from rich.panel import Panel
 from rich.table import Table
-from rich.text import Text
 
 # ────────────────────────────────────────────────────────────────────────────
 # Constantes
