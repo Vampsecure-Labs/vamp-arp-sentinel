@@ -129,6 +129,83 @@ Sentinel mode: live dual-panel terminal display. At session end (Ctrl+C), a summ
 
 Attacker mode: live table of sent packets with sequence number, payload (`FAKE_IP is-at OUR_MAC`), and timestamp.
 
+## Sample Output
+
+```
+$ sudo python vamp_arp_sentinel.py sentinel -i eth0 --learn-time 15 --subnet 192.168.10.0/24
+
+  vamp-arp-sentinel v2.1 — ARP Spoofing Detector
+  VampSecure Labs Security Research Division
+
+  Interface: eth0   Subnet: 192.168.10.0/24
+  Learning phase: 15 seconds — building trusted IP→MAC table ...
+
+  ┌── ARP Table (learned) ──────────────────────────────────────┐
+  │  192.168.10.1    →  aa:bb:cc:11:22:33  (gateway)           │
+  │  192.168.10.10   →  de:ad:be:ef:00:01  (workstation-01)    │
+  │  192.168.10.20   →  de:ad:be:ef:00:02  (workstation-02)    │
+  │  192.168.10.50   →  ca:fe:ba:be:00:0a  (printer-01)        │
+  └──────────────────────────────────────────────────────────────┘
+
+  Table sealed — 4 entries. Monitoring for ARP spoofing...
+
+  [10:42:17] ✓ ARP reply 192.168.10.10 → de:ad:be:ef:00:01  (known, OK)
+  [10:42:31] ✓ ARP reply 192.168.10.20 → de:ad:be:ef:00:02  (known, OK)
+
+  ┌── ALERT ─────────────────────────────────────────────────────┐
+  │  CRITICAL — ARP SPOOFING DETECTED                           │
+  │  Time:         10:42:44                                      │
+  │  IP:           192.168.10.1                                  │
+  │  Original MAC: aa:bb:cc:11:22:33                             │
+  │  Spoofed MAC:  ff:ee:dd:cc:bb:aa  ← ATTACKER               │
+  │  Technique:    MITRE ATT&CK T1557.002 (ARP Cache Poisoning) │
+  └──────────────────────────────────────────────────────────────┘
+
+  ^C  Session terminated.
+
+  ╭────────────────── Session Summary ──────────────────╮
+  │  Duration: 4m 12s   Entries learned: 4             │
+  │  Packets observed: 847   Alerts raised: 1          │
+  │  CRITICAL: 1 (ARP spoofing detected)               │
+  ╰─────────────────────────────────────────────────────╯
+```
+
+## Why vamp-arp-sentinel vs arpwatch · XArp · Snort ARP rules
+
+| Feature | vamp-arp-sentinel | arpwatch | XArp | Snort ARP rules |
+|---------|-------------------|---------|------|-----------------|
+| Cross-platform (Linux + macOS) | ✅ | ⚠️ Linux only | ⚠️ Windows GUI | ⚠️ Linux only |
+| Real-time Rich TUI (split panel) | ✅ | ❌ (email/log only) | ✅ (GUI only) | ❌ (log only) |
+| Built-in PoC attacker for lab validation | ✅ | ❌ | ❌ | ❌ |
+| CIDR scope enforcement | ✅ | ❌ | ✅ | ⚠️ |
+| MITRE ATT&CK mapping per alert | ✅ | ❌ | ❌ | ❌ |
+| VSL client report (HTML/PDF) | ✅ | ❌ | ❌ | ❌ |
+| No external rule engine required | ✅ | ✅ | ✅ | ❌ (Snort daemon) |
+| Configurable learning window | ✅ | ⚠️ static | ✅ | ❌ |
+| Headless / CI-friendly | ✅ | ✅ | ❌ | ✅ |
+| License | research only | GPL-2.0 | commercial | GPL-2.0 |
+
+**Key differentiators:**
+
+- **Attacker + defender in one tool**: the `attacker` subcommand sends forged ARP replies to validate that DAI/DHCP Snooping rules (or the sentinel itself) are catching the attack — no separate PoC script or Scapy one-liner needed.
+- **Two-phase sealed table**: the configurable learning window builds a stable IP→MAC baseline before raising alerts, eliminating false positives from DHCP lease renewals during the monitoring startup.
+- **Scope file support**: a `scope.txt` with one CIDR per line restricts monitoring to authorized subnets, satisfying rules-of-engagement requirements in multi-tenant and shared network environments.
+- **CLI-first design**: headless operation with HTML/PDF report output at session end makes it suitable for scheduled blue-team health checks and post-engagement deliverables.
+
+## Check Coverage
+
+| Check ID | Description | Standard | Severity |
+|----------|-------------|----------|----------|
+| ARP-001 | MAC address change for a known IP after table sealing (ARP cache poisoning) | MITRE ATT&CK T1557.002 | CRITICAL |
+| ARP-002 | Gateway IP claimed by a non-gateway MAC address | MITRE ATT&CK T1557.002 / CIS Control 13.8 | CRITICAL |
+| ARP-003 | Broadcast ARP reply claiming an IP not seen during learning phase | MITRE ATT&CK T1557.002 | HIGH |
+| ARP-004 | Multiple conflicting MAC addresses for the same IP within a short window | MITRE ATT&CK T1557.002 | CRITICAL |
+| ARP-005 | ARP reply received from a source outside the authorized scope subnet | MITRE ATT&CK T1557 / CIS Control 13.3 | HIGH |
+| ARP-006 | Gratuitous ARP flood — high reply rate from a single sender MAC | MITRE ATT&CK T1557.002 / CIS Control 13.8 | HIGH |
+| ARP-007 | ARP reply with null sender MAC (`00:00:00:00:00:00`) | MITRE ATT&CK T1557 | MEDIUM |
+| ARP-008 | IP-to-MAC mapping conflict between two simultaneously active hosts | CIS Control 13.4 | MEDIUM |
+| ARP-PoC-001 | Forged ARP `is-at` reply sent by the built-in PoC attacker mode (lab validation) | MITRE ATT&CK T1557.002 (controlled) | INFO |
+
 ## Part of VampSecure Labs Toolkit
 
 This tool is part of the **VampSecure Labs Security Toolkit** — a collection of research-grade security tools for authorized penetration testing and red/blue team exercises.
