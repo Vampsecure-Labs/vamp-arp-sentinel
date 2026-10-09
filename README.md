@@ -136,7 +136,7 @@ Attacker mode: live table of sent packets with sequence number, payload (`FAKE_I
 ```
 $ sudo python vamp_arp_sentinel.py sentinel -i eth0 --learn-time 15 --subnet 192.168.10.0/24
 
-  vamp-arp-sentinel v2.2 — ARP Spoofing Detector
+  vamp-arp-sentinel v2.3 — ARP Spoofing Detector
   VampSecure Labs Security Research Division
 
   Interface: eth0   Subnet: 192.168.10.0/24
@@ -212,7 +212,8 @@ $ sudo python vamp_arp_sentinel.py sentinel -i eth0 --learn-time 15 --subnet 192
 
 | Version | Main changes |
 |---------|-------------|
-| v2.2 | Bilingual README (EN/ES) |
+| v2.3 | Bilingual README (EN/ES) |
+| v2.2 | Orchestrator integration |
 | v2.1 | Initial public release: passive ARP spoofing detection, two-phase learning, PoC attacker mode, CIDR scope enforcement, VSL HTML/PDF reports |
 
 ## Part of VampSecure Labs Toolkit
@@ -348,7 +349,7 @@ Modo attacker: tabla en vivo de paquetes enviados con número de secuencia, payl
 ```
 $ sudo python vamp_arp_sentinel.py sentinel -i eth0 --learn-time 15 --subnet 192.168.10.0/24
 
-  vamp-arp-sentinel v2.2 — Detector de ARP Spoofing
+  vamp-arp-sentinel v2.3 — Detector de ARP Spoofing
   VampSecure Labs Security Research Division
 
   Interfaz: eth0   Subred: 192.168.10.0/24
@@ -424,7 +425,8 @@ $ sudo python vamp_arp_sentinel.py sentinel -i eth0 --learn-time 15 --subnet 192
 
 | Versión | Cambios principales |
 |---------|---------------------|
-| v2.2 | README bilingüe (EN/ES) |
+| v2.3 | README bilingüe (EN/ES) |
+| v2.2 | Integración con el orquestador |
 | v2.1 | Primera versión pública: detección pasiva de ARP spoofing, aprendizaje en dos fases, modo atacante PoC, imposición de alcance CIDR, informes HTML/PDF VSL |
 
 ## Parte del Toolkit VampSecure Labs
