@@ -13,9 +13,12 @@
   <img src="https://github.com/Vampsecure-Labs/vamp-arp-sentinel/actions/workflows/ci.yml/badge.svg" alt="CI"/>
 </p>
 
+> 🇬🇧 [English](#english) · 🇪🇸 [Español](#español)
+
 ---
 
-## Overview
+<a name="english"></a>
+## 🇬🇧 English
 
 `vamp-arp-sentinel` is a network security tool combining passive ARP spoofing detection with a controlled proof-of-concept attacker mode for lab environments. In `sentinel` mode, it captures ARP traffic via Scapy with a BPF `arp` filter, builds a trusted IP→MAC table during a configurable learning phase, then seals the table and generates CRITICAL alerts whenever a known IP maps to a different MAC address — the definitive signature of ARP cache poisoning and Man-in-the-Middle attacks. In `attacker` mode, it sends forged ARP reply packets to validate that detection controls are correctly catching the attack in an authorized lab network.
 
@@ -48,15 +51,14 @@ Standard library: `argparse`, `ipaddress`, `os`, `sys`, `threading`, `time`, `da
 
 ## Installation
 
-
 ```bash
 pip install vamp-arp-sentinel
-# o con Homebrew:
+# or with Homebrew:
 brew install vampsecure-labs/labs/vamp-arp-sentinel
 ```
 
 ```bash
-git clone https://github.com/belky-me/vamp-arp-sentinel.git
+git clone https://github.com/Vampsecure-Labs/vamp-arp-sentinel.git
 cd vamp-arp-sentinel
 pip install -r requirements.txt
 ```
@@ -134,7 +136,7 @@ Attacker mode: live table of sent packets with sequence number, payload (`FAKE_I
 ```
 $ sudo python vamp_arp_sentinel.py sentinel -i eth0 --learn-time 15 --subnet 192.168.10.0/24
 
-  vamp-arp-sentinel v2.1 — ARP Spoofing Detector
+  vamp-arp-sentinel v2.2 — ARP Spoofing Detector
   VampSecure Labs Security Research Division
 
   Interface: eth0   Subnet: 192.168.10.0/24
@@ -206,12 +208,19 @@ $ sudo python vamp_arp_sentinel.py sentinel -i eth0 --learn-time 15 --subnet 192
 | ARP-008 | IP-to-MAC mapping conflict between two simultaneously active hosts | CIS Control 13.4 | MEDIUM |
 | ARP-PoC-001 | Forged ARP `is-at` reply sent by the built-in PoC attacker mode (lab validation) | MITRE ATT&CK T1557.002 (controlled) | INFO |
 
+## Version History
+
+| Version | Main changes |
+|---------|-------------|
+| v2.2 | Bilingual README (EN/ES) |
+| v2.1 | Initial public release: passive ARP spoofing detection, two-phase learning, PoC attacker mode, CIDR scope enforcement, VSL HTML/PDF reports |
+
 ## Part of VampSecure Labs Toolkit
 
 This tool is part of the **VampSecure Labs Security Toolkit** — a collection of research-grade security tools for authorized penetration testing and red/blue team exercises.
 
-- Full toolkit: [github.com/belky-me](https://github.com/belky-me)
-- Orchestrator: [github.com/belky-me/vamp-orchestrator](https://github.com/belky-me/vamp-orchestrator)
+- Full toolkit: [github.com/Vampsecure-Labs](https://github.com/Vampsecure-Labs)
+- Orchestrator: [github.com/Vampsecure-Labs/vamp-orchestrator](https://github.com/Vampsecure-Labs/vamp-orchestrator)
 
 ---
 
@@ -220,5 +229,212 @@ For authorized security testing only.
 
 ---
 
-## Versión
-v2.1 — VampSecure Labs Security Research Division
+<a name="español"></a>
+## 🇪🇸 Español
+
+`vamp-arp-sentinel` es una herramienta de seguridad de red que combina detección pasiva de ARP spoofing con un modo atacante de prueba de concepto controlado para entornos de laboratorio. En modo `sentinel`, captura tráfico ARP vía Scapy con un filtro BPF `arp`, construye una tabla IP→MAC de confianza durante una fase de aprendizaje configurable, sella la tabla y genera alertas CRITICAL cada vez que una IP conocida mapea a una dirección MAC diferente — la firma definitiva del envenenamiento de caché ARP y los ataques Man-in-the-Middle. En modo `attacker`, envía paquetes ARP reply falsificados para validar que los controles de detección están capturando correctamente el ataque en una red de laboratorio autorizada.
+
+La imposición de alcance mediante filtrado de subredes CIDR garantiza que la herramienta opere únicamente dentro de rangos de red explícitamente autorizados.
+
+## Características
+
+- **Detección sentinel en dos fases**: la fase de aprendizaje construye la tabla canónica IP→MAC; la fase sellada genera alertas CRITICAL ante cualquier cambio de MAC para una IP conocida
+- **Pantalla Rich en tiempo real** — diseño de panel dividido actualizado en vivo con la tabla IP/MAC (arriba) y el panel de alertas (abajo), refrescado a 2 Hz
+- **Imposición de alcance** — limita la monitorización a subredes autorizadas mediante `--subnet CIDR` o un fichero `scope.txt` con un CIDR por línea; las IPs fuera del alcance se ignoran silenciosamente
+- **Ventana de aprendizaje configurable** — `--learn-time` establece cuánto tiempo observa el centinela antes de sellar la tabla (por defecto: 10 segundos)
+- **Atacante de prueba de concepto** — envía respuestas ARP `is-at` en broadcast reclamando que una IP objetivo pertenece a la MAC de la herramienta; útil para validar que las reglas DAI / DHCP Snooping se activan correctamente
+- **Intervalo de ataque configurable** para el modo PoC mediante `--interval`
+- **Captura de paquetes vía Scapy** con filtro BPF `arp` — solo se procesan paquetes ARP reply (op=2), minimizando el uso de CPU
+- **Informe unificado VSL para el cliente** (HTML/PDF) de sesiones `sentinel` mediante `--report-html` / `--report-pdf`
+- Requiere privilegios root (captura de paquetes en modo raw)
+
+## Requisitos
+
+```
+pip install -r requirements.txt
+```
+
+| Paquete | Versión |
+|---------|---------|
+| `scapy` | >= 2.5.0 |
+| `rich`  | >= 13.7.0 |
+
+Biblioteca estándar: `argparse`, `ipaddress`, `os`, `sys`, `threading`, `time`, `datetime`.
+
+## Instalación
+
+```bash
+pip install vamp-arp-sentinel
+# o con Homebrew:
+brew install vampsecure-labs/labs/vamp-arp-sentinel
+```
+
+```bash
+git clone https://github.com/Vampsecure-Labs/vamp-arp-sentinel.git
+cd vamp-arp-sentinel
+pip install -r requirements.txt
+```
+
+Requiere root o capacidad `CAP_NET_RAW` para la captura de paquetes en modo raw.
+
+## Uso
+
+```bash
+python vamp_arp_sentinel.py --help
+```
+
+Hay dos subcomandos disponibles: `sentinel` y `attacker`.
+
+```
+usage: vamp-arp-sentinel {sentinel,attacker} ...
+
+subcomandos:
+  sentinel   Detectar ARP spoofing en la red (pasivo + alertas)
+  attacker   Enviar respuestas ARP falsificadas para validación en laboratorio (solo PoC)
+```
+
+### Ejemplos
+
+**Monitorizar la interfaz `eth0` con una fase de aprendizaje de 15 segundos:**
+```bash
+sudo python vamp_arp_sentinel.py sentinel -i eth0 --learn-time 15
+```
+
+**Restringir la monitorización a una subred autorizada:**
+```bash
+sudo python vamp_arp_sentinel.py sentinel -i eth0 --subnet 192.168.10.0/24
+```
+
+**Cargar subredes autorizadas desde un fichero de alcance:**
+```bash
+sudo python vamp_arp_sentinel.py sentinel -i eth0 --scope scope.txt
+```
+
+**Ejecutar el centinela y generar un informe HTML para el cliente al finalizar la sesión:**
+```bash
+sudo python vamp_arp_sentinel.py sentinel -i eth0 --learn-time 30 \
+    --subnet 10.0.0.0/24 --report-html informe_arp.html
+```
+
+**PoC: enviar respuestas ARP falsificadas en un entorno de laboratorio (solo autorizado):**
+```bash
+sudo python vamp_arp_sentinel.py attacker 192.168.1.100 192.168.1.1 -i eth0
+```
+
+**PoC: velocidad de ataque mayor (intervalo de 1 segundo entre paquetes):**
+```bash
+sudo python vamp_arp_sentinel.py attacker 192.168.1.100 192.168.1.1 -i eth0 --interval 1
+```
+
+## Estructura de alertas del centinela
+
+Cada alerta registra:
+
+| Campo | Descripción |
+|-------|-------------|
+| Timestamp | HH:MM:SS de la detección |
+| IP | Dirección IPv4 cuya MAC ha cambiado |
+| MAC original | Dirección MAC registrada durante la fase de aprendizaje |
+| MAC nueva | Dirección MAC falsificada detectada tras el sellado de la tabla |
+
+## Salida
+
+Modo sentinel: pantalla de terminal de panel dual en vivo. Al finalizar la sesión (Ctrl+C), un panel de resumen muestra el total de entradas aprendidas y el total de alertas generadas.
+
+Modo attacker: tabla en vivo de paquetes enviados con número de secuencia, payload (`FAKE_IP is-at OUR_MAC`) y timestamp.
+
+## Ejemplo de salida
+
+```
+$ sudo python vamp_arp_sentinel.py sentinel -i eth0 --learn-time 15 --subnet 192.168.10.0/24
+
+  vamp-arp-sentinel v2.2 — Detector de ARP Spoofing
+  VampSecure Labs Security Research Division
+
+  Interfaz: eth0   Subred: 192.168.10.0/24
+  Fase de aprendizaje: 15 segundos — construyendo tabla IP→MAC de confianza ...
+
+  ┌── Tabla ARP (aprendida) ────────────────────────────────────┐
+  │  192.168.10.1    →  aa:bb:cc:11:22:33  (gateway)           │
+  │  192.168.10.10   →  de:ad:be:ef:00:01  (workstation-01)    │
+  │  192.168.10.20   →  de:ad:be:ef:00:02  (workstation-02)    │
+  │  192.168.10.50   →  ca:fe:ba:be:00:0a  (impresora-01)      │
+  └──────────────────────────────────────────────────────────────┘
+
+  Tabla sellada — 4 entradas. Monitorizando ARP spoofing...
+
+  [10:42:17] ✓ ARP reply 192.168.10.10 → de:ad:be:ef:00:01  (conocido, OK)
+  [10:42:31] ✓ ARP reply 192.168.10.20 → de:ad:be:ef:00:02  (conocido, OK)
+
+  ┌── ALERTA ────────────────────────────────────────────────────┐
+  │  CRITICAL — ARP SPOOFING DETECTADO                          │
+  │  Hora:          10:42:44                                     │
+  │  IP:            192.168.10.1                                 │
+  │  MAC original:  aa:bb:cc:11:22:33                            │
+  │  MAC falsificada: ff:ee:dd:cc:bb:aa  ← ATACANTE             │
+  │  Técnica:       MITRE ATT&CK T1557.002 (ARP Cache Poisoning)│
+  └──────────────────────────────────────────────────────────────┘
+
+  ^C  Sesión terminada.
+
+  ╭────────────────── Resumen de Sesión ────────────────╮
+  │  Duración: 4m 12s   Entradas aprendidas: 4         │
+  │  Paquetes observados: 847   Alertas generadas: 1   │
+  │  CRITICAL: 1 (ARP spoofing detectado)              │
+  ╰─────────────────────────────────────────────────────╯
+```
+
+## Por qué vamp-arp-sentinel vs arpwatch · XArp · Reglas ARP de Snort
+
+| Característica | vamp-arp-sentinel | arpwatch | XArp | Reglas ARP Snort |
+|----------------|-------------------|---------|------|------------------|
+| Multiplataforma (Linux + macOS) | ✅ | ⚠️ solo Linux | ⚠️ GUI Windows | ⚠️ solo Linux |
+| TUI Rich en tiempo real (panel dividido) | ✅ | ❌ (solo email/log) | ✅ (solo GUI) | ❌ (solo log) |
+| Atacante PoC integrado para validación en laboratorio | ✅ | ❌ | ❌ | ❌ |
+| Imposición de alcance CIDR | ✅ | ❌ | ✅ | ⚠️ |
+| Mapeo MITRE ATT&CK por alerta | ✅ | ❌ | ❌ | ❌ |
+| Informe VSL para el cliente (HTML/PDF) | ✅ | ❌ | ❌ | ❌ |
+| Sin motor de reglas externo | ✅ | ✅ | ✅ | ❌ (daemon Snort) |
+| Ventana de aprendizaje configurable | ✅ | ⚠️ estático | ✅ | ❌ |
+| Headless / compatible con CI | ✅ | ✅ | ❌ | ✅ |
+| Licencia | solo investigación | GPL-2.0 | comercial | GPL-2.0 |
+
+**Diferenciadores clave:**
+
+- **Atacante + defensor en una sola herramienta**: el subcomando `attacker` envía respuestas ARP falsificadas para validar que las reglas DAI/DHCP Snooping (o el propio centinela) están capturando el ataque — sin necesidad de script PoC separado ni one-liner de Scapy.
+- **Tabla sellada en dos fases**: la ventana de aprendizaje configurable construye una línea base IP→MAC estable antes de generar alertas, eliminando falsos positivos por renovaciones de lease DHCP durante el arranque de la monitorización.
+- **Soporte de fichero de alcance**: un `scope.txt` con un CIDR por línea restringe la monitorización a subredes autorizadas, cumpliendo con los requisitos de reglas de compromiso en entornos multi-inquilino y de red compartida.
+- **Diseño CLI-first**: la operación headless con salida de informe HTML/PDF al finalizar la sesión lo hace adecuado para comprobaciones programadas de salud del equipo azul y entregables post-compromiso.
+
+## Cobertura de checks
+
+| Check ID | Descripción | Estándar | Severidad |
+|----------|-------------|----------|-----------|
+| ARP-001 | Cambio de dirección MAC para una IP conocida tras el sellado de la tabla (envenenamiento de caché ARP) | MITRE ATT&CK T1557.002 | CRITICAL |
+| ARP-002 | IP de gateway reclamada por una MAC que no es la del gateway | MITRE ATT&CK T1557.002 / CIS Control 13.8 | CRITICAL |
+| ARP-003 | Respuesta ARP broadcast reclamando una IP no vista durante la fase de aprendizaje | MITRE ATT&CK T1557.002 | HIGH |
+| ARP-004 | Múltiples direcciones MAC en conflicto para la misma IP en una ventana corta | MITRE ATT&CK T1557.002 | CRITICAL |
+| ARP-005 | Respuesta ARP recibida desde una fuente fuera de la subred de alcance autorizada | MITRE ATT&CK T1557 / CIS Control 13.3 | HIGH |
+| ARP-006 | Flood de ARP gratuito — alta tasa de respuestas desde una sola MAC emisora | MITRE ATT&CK T1557.002 / CIS Control 13.8 | HIGH |
+| ARP-007 | Respuesta ARP con MAC emisora nula (`00:00:00:00:00:00`) | MITRE ATT&CK T1557 | MEDIUM |
+| ARP-008 | Conflicto de mapeo IP-a-MAC entre dos hosts simultáneamente activos | CIS Control 13.4 | MEDIUM |
+| ARP-PoC-001 | Respuesta ARP `is-at` falsificada enviada por el modo atacante PoC integrado (validación de laboratorio) | MITRE ATT&CK T1557.002 (controlado) | INFO |
+
+## Historial de versiones
+
+| Versión | Cambios principales |
+|---------|---------------------|
+| v2.2 | README bilingüe (EN/ES) |
+| v2.1 | Primera versión pública: detección pasiva de ARP spoofing, aprendizaje en dos fases, modo atacante PoC, imposición de alcance CIDR, informes HTML/PDF VSL |
+
+## Parte del Toolkit VampSecure Labs
+
+Esta herramienta forma parte del **Toolkit de Seguridad VampSecure Labs** — una colección de herramientas de seguridad de grado investigación para pentesting autorizado y ejercicios de equipo rojo/azul.
+
+- Toolkit completo: [github.com/Vampsecure-Labs](https://github.com/Vampsecure-Labs)
+- Orquestador: [github.com/Vampsecure-Labs/vamp-orchestrator](https://github.com/Vampsecure-Labs/vamp-orchestrator)
+
+---
+
+© VampSecure Studios — VampSecure Labs Security Research Division  
+Solo para pruebas de seguridad autorizadas.
