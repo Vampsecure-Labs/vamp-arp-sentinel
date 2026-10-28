@@ -136,7 +136,7 @@ Attacker mode: live table of sent packets with sequence number, payload (`FAKE_I
 ```
 $ sudo python vamp_arp_sentinel.py sentinel -i eth0 --learn-time 15 --subnet 192.168.10.0/24
 
-  vamp-arp-sentinel v2.3 — ARP Spoofing Detector
+  vamp-arp-sentinel v2.2 — ARP Spoofing Detector
   VampSecure Labs Security Research Division
 
   Interface: eth0   Subnet: 192.168.10.0/24
@@ -349,7 +349,7 @@ Modo attacker: tabla en vivo de paquetes enviados con número de secuencia, payl
 ```
 $ sudo python vamp_arp_sentinel.py sentinel -i eth0 --learn-time 15 --subnet 192.168.10.0/24
 
-  vamp-arp-sentinel v2.3 — Detector de ARP Spoofing
+  vamp-arp-sentinel v2.2 — Detector de ARP Spoofing
   VampSecure Labs Security Research Division
 
   Interfaz: eth0   Subred: 192.168.10.0/24
